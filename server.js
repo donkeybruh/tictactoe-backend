@@ -17,7 +17,7 @@ io.on('connection', socket => {
   console.log('Gebruiker verbonden:', socket.id);
 
   if (waitingPlayer) {
-    const room = \`\${waitingPlayer.id}#\${socket.id}\`;
+    const room = waitingPlayer.id + "#" + socket.id;
     socket.join(room);
     waitingPlayer.join(room);
     io.to(room).emit('start', { room, players: [waitingPlayer.id, socket.id] });
