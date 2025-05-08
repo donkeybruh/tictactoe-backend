@@ -19,7 +19,7 @@ app.get('/', (req, res) => {
 });
 
 // Serve static files (kan hierna)
-app.use(express.static('public'));
+app.use(express.static(__dirname)); // Dit zorgt ervoor dat de bestanden in de root directory worden geserveerd
 
 io.on('connection', socket => {
   console.log('Gebruiker verbonden:', socket.id);
