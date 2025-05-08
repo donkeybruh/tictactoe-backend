@@ -13,6 +13,14 @@ const io = new Server(server, {
 
 let waitingPlayer = null;
 
+// Root route moet als eerste komen
+app.get('/', (req, res) => {
+  res.send('Tic-Tac-Toe Backend is running');
+});
+
+// Serve static files (kan hierna)
+app.use(express.static('public'));
+
 io.on('connection', socket => {
   console.log('Gebruiker verbonden:', socket.id);
 
