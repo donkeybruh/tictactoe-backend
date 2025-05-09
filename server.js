@@ -1,48 +1,65 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+let roomId = null;
+let playerSymbol = null;
+let gameOver = false;
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-  }
+// Bij klikken op online starten
+function startOnline() {
+  document.getElementById("menu-screen").classList.add("hidden");
+  document.getElementById("game-screen").classList.remove("hidden");
+
+  socket.emit("joinRoom");
+}
+
+socket.on("roomJoined", ({ room, symbol }) => {
+  roomId = room;
+  playerSymbol = symbol;
+  console.log("Joined room", roomId, "as", playerSymbol);
 });
 
-let waitingPlayer = null;
+socket.on("updateBoard", ({ index, symbol }) => {
+  gameBoard[index] = symbol;
+  document.getElementById('tic-tac-toe-grid').children[index].textContent = symbol;
+});
 
-
-// Serve static files (als je die hebt in je rootmap)
-const path = require('path');
-app.use(express.static(path.join(__dirname, 'public')));
-
-
-io.on('connection', socket => {
-  console.log('Gebruiker verbonden:', socket.id);
-
-  if (waitingPlayer) {
-    const room = waitingPlayer.id + "#" + socket.id;
-    socket.join(room);
-    waitingPlayer.join(room);
-    io.to(room).emit('start', { room, players: [waitingPlayer.id, socket.id] });
-    waitingPlayer = null;
+socket.on("gameOver", (winner) => {
+  gameOver = true;
+  if (winner) {
+    alert(`${winner} wins!`);
   } else {
-    waitingPlayer = socket;
+    alert("It's a draw!");
   }
 
-  socket.on('move', ({ room, index, symbol }) => {
-    socket.to(room).emit('move', { index, symbol });
-  });
-
-  socket.on('disconnect', () => {
-    if (waitingPlayer === socket) {
-      waitingPlayer = null;
-    }
-  });
+  const restartBtn = document.createElement("button");
+  restartBtn.textContent = "Restart Game";
+  restartBtn.className = "start-button";
+  restartBtn.onclick = () => {
+    socket.emit("restartGame", { room: roomId });
+    restartBtn.remove();
+  };
+  document.getElementById("game-screen").appendChild(restartBtn);
 });
 
-server.listen(process.env.PORT || 3000, () => {
-  console.log('Server draait op poort 3000');
+socket.on("gameRestarted", () => {
+  gameOver = false;
+  gameBoard = ['', '', '', '', '', '', '', '', ''];
+  currentPlayer = 'X';
+
+  const cells = document.querySelectorAll('.grid button');
+  cells.forEach(cell => (cell.textContent = ''));
 });
+
+function markCell(index) {
+  if (gameOver || gameBoard[index] !== '') return;
+
+  if (playerSymbol !== currentPlayer) return;
+
+  socket.emit("makeMove", {
+    room: roomId,
+    index,
+    symbol: playerSymbol,
+  });
+}
+</script>

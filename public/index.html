@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Tic Tac Toe</title>
+  <script src="/socket.io/socket.io.js"></script>
   <style>
     body, html {
       margin: 0;
@@ -80,7 +81,6 @@
       display: none;
     }
 
-    /* Left arrow button */
     .back-button {
       position: absolute;
       top: 20px;
@@ -106,7 +106,6 @@
       transform: scale(0.95);
     }
 
-    /* Tic Tac Toe Grid */
     .grid {
       display: grid;
       grid-template-columns: repeat(3, 100px);
@@ -132,27 +131,23 @@
     .grid button:active {
       transform: scale(0.98);
     }
-
   </style>
 </head>
 <body>
   <header id="main-header">Tic Tac Toe</header>
 
-  <!-- Keuzescherm -->
   <div id="menu-screen" class="container" role="main">
     <div class="choose-text">Choose your opponent</div>
     <button class="start-button" onclick="startHumanGame()">Human</button>
     <button class="start-button" onclick="startBotGame()">Bot</button>
   </div>
 
-  <!-- Vervolgscherm voor spelen tegen een andere speler -->
   <div id="human-screen" class="game-screen hidden">
     <button class="start-button" onclick="startThisRoom()">This Room</button>
     <button class="start-button" onclick="startOnline()">Online</button>
     <button class="back-button" onclick="goBack('menu-screen')">←</button>
   </div>
 
-  <!-- Tic Tac Toe Game Screen -->
   <div id="game-screen" class="game-screen hidden">
     <div class="choose-text">Game Room</div>
     <div class="grid" id="tic-tac-toe-grid">
@@ -171,150 +166,119 @@
   </div>
 
   <script>
+    const socket = io();
     let currentPlayer = 'X';
     let gameBoard = ['', '', '', '', '', '', '', '', ''];
-    let isBotTurn = false; // To track bot's turn
-    let playingWithBot = false; // To track if we are playing against bot or human
+    let isBotTurn = false;
+    let playingWithBot = false;
+    let roomId = '';
+    let playerSymbol = '';
 
-    // Functie om het scherm voor de mens te starten
     function startHumanGame() {
       document.getElementById("menu-screen").classList.add("hidden");
       document.getElementById("human-screen").classList.remove("hidden");
       document.getElementById("main-header").classList.add("hidden");
     }
 
-    // Functie om het spel scherm voor de bot te starten
     function startBotGame() {
       document.getElementById("menu-screen").classList.add("hidden");
       document.getElementById("game-screen").classList.remove("hidden");
-      startGameBot();
       playingWithBot = true;
+      resetGame();
     }
 
-    // Functie om de optie 'This Room' te starten
     function startThisRoom() {
       document.getElementById("human-screen").classList.add("hidden");
       document.getElementById("game-screen").classList.remove("hidden");
-      startGameRoomPlay();
       playingWithBot = false;
+      resetGame();
     }
 
-    // Functie om online te starten (plaats hier de logica voor online spelen)
     function startOnline() {
-      alert("This option is not implemented yet, but you can implement a multiplayer feature with sockets.");
+      document.getElementById("human-screen").classList.add("hidden");
+      document.getElementById("game-screen").classList.remove("hidden");
+      playingWithBot = false;
+
+      socket.emit("joinRoom");
+
+      socket.on("roomJoined", ({ room, symbol }) => {
+        roomId = room;
+        playerSymbol = symbol;
+        currentPlayer = 'X';
+        resetGame();
+        alert(`You joined ${room} as ${symbol}`);
+      });
+
+      socket.on("updateBoard", ({ index, symbol }) => {
+        gameBoard[index] = symbol;
+        document.getElementById('tic-tac-toe-grid').children[index].textContent = symbol;
+        currentPlayer = symbol === 'X' ? 'O' : 'X';
+      });
+
+      socket.on("gameOver", (winner) => {
+        alert(winner ? `${winner} wins!` : "Draw!");
+      });
     }
 
-    // Start het spel voor de bot
-    function startGameBot() {
-      gameBoard = ['', '', '', '', '', '', '', '', ''];
-      currentPlayer = 'X'; // Player starts
-      isBotTurn = false; // Player's turn first
-      const cells = document.querySelectorAll('.grid button');
-      cells.forEach(cell => cell.textContent = '');
-      playBotMove(); // Bot maakt meteen zijn zet
-    }
-
-    // Start het spel voor de kamer
-    function startGameRoomPlay() {
-      gameBoard = ['', '', '', '', '', '', '', '', ''];
-      currentPlayer = 'X'; // Player starts
-      const cells = document.querySelectorAll('.grid button');
-      cells.forEach(cell => cell.textContent = '');
-    }
-
-    // Functie om een cel van het bord te markeren
     function markCell(index) {
       if (gameBoard[index] === '') {
-        gameBoard[index] = currentPlayer;
-        document.getElementById('tic-tac-toe-grid').children[index].textContent = currentPlayer;
-        checkWinner();
-        currentPlayer = currentPlayer === 'X' ? 'O' : 'X'; // Switch player
-        if (currentPlayer === 'O' && playingWithBot) {
-          isBotTurn = true;
-          setTimeout(playBotMove, 500); // Laat de bot na een korte vertraging spelen
-        } else {
-          isBotTurn = false;
+        if (playingWithBot) {
+          gameBoard[index] = currentPlayer;
+          document.getElementById('tic-tac-toe-grid').children[index].textContent = currentPlayer;
+          if (checkWinner()) return;
+          currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+          if (currentPlayer === 'O') setTimeout(playBotMove, 500);
+        } else if (roomId && currentPlayer === playerSymbol) {
+          gameBoard[index] = playerSymbol;
+          document.getElementById('tic-tac-toe-grid').children[index].textContent = playerSymbol;
+          socket.emit("makeMove", { room: roomId, index, symbol: playerSymbol });
+        } else if (!roomId) {
+          gameBoard[index] = currentPlayer;
+          document.getElementById('tic-tac-toe-grid').children[index].textContent = currentPlayer;
+          if (checkWinner()) return;
+          currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
         }
       }
     }
 
-    // Functie om de bot zet te laten doen
     function playBotMove() {
-      if (isBotTurn) {
-        let bestMove = getBestMove(); // Haal de beste zet voor de bot op
-        markCell(bestMove);
-      }
+      const emptyIndices = gameBoard.map((val, i) => val === '' ? i : null).filter(i => i !== null);
+      const move = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+      markCell(move);
     }
 
-    // Functie om de beste zet van de bot te berekenen
-    function getBestMove() {
-      // Eerst kijken of de bot kan winnen
-      for (let i = 0; i < 9; i++) {
-        if (gameBoard[i] === '') {
-          gameBoard[i] = 'O';
-          if (checkWinnerBot('O')) {
-            gameBoard[i] = '';
-            return i;
-          }
-          gameBoard[i] = '';
+    function checkWinner() {
+      const wins = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+      ];
+      for (let [a, b, c] of wins) {
+        if (gameBoard[a] && gameBoard[a] === gameBoard[b] && gameBoard[a] === gameBoard[c]) {
+          alert(`${gameBoard[a]} wins!`);
+          return true;
         }
       }
-
-      // Kijk of de speler kan winnen, en blokkeer hem
-  for (let i = 0; i < 9; i++) {
-    if (gameBoard[i] === '') {
-      gameBoard[i] = 'X';
-      if (checkWinnerBot('X')) {
-        gameBoard[i] = '';
-        return i;
+      if (!gameBoard.includes('')) {
+        alert("Draw!");
+        return true;
       }
-      gameBoard[i] = '';
+      return false;
     }
-  }
 
-  // Geen winnende zet, kies een willekeurige zet
-  let availableMoves = [];
-  for (let i = 0; i < 9; i++) {
-    if (gameBoard[i] === '') {
-      availableMoves.push(i);
+    function resetGame() {
+      gameBoard = ['', '', '', '', '', '', '', '', ''];
+      currentPlayer = 'X';
+      const cells = document.querySelectorAll('.grid button');
+      cells.forEach(cell => cell.textContent = '');
     }
-  }
-  return availableMoves[Math.floor(Math.random() * availableMoves.length)];
-}
 
-// Functie om te controleren of iemand gewonnen heeft
-function checkWinner() {
-  const winningCombinations = [
-    [0, 1, 2], [3, 4, 5], [6, 7, 8],
-    [0, 3, 6], [1, 4, 7], [2, 5, 8],
-    [0, 4, 8], [2, 4, 6]
-  ];
-
-  for (let combination of winningCombinations) {
-    const [a, b, c] = combination;
-    if (gameBoard[a] !== '' && gameBoard[a] === gameBoard[b] && gameBoard[a] === gameBoard[c]) {
-      alert(`${gameBoard[a]} wins!`);
-      return true;
+    function goBack(screen) {
+      document.getElementById("menu-screen").classList.add("hidden");
+      document.getElementById("human-screen").classList.add("hidden");
+      document.getElementById("game-screen").classList.add("hidden");
+      document.getElementById(screen).classList.remove("hidden");
     }
-  }
-  return false;
-}
-
-// Functie om terug te gaan naar het vorige scherm
-function goBack(screen) {
-  document.getElementById("menu-screen").classList.add("hidden");
-  document.getElementById("human-screen").classList.add("hidden");
-  document.getElementById("game-screen").classList.add("hidden");
-  document.getElementById(screen).classList.remove("hidden");
-}
-
-// Reset het bord
-function resetGame() {
-  gameBoard = ['', '', '', '', '', '', '', '', ''];
-  currentPlayer = 'X';
-  const cells = document.querySelectorAll('.grid button');
-  cells.forEach(cell => cell.textContent = '');
-}
-</script>
+  </script>
 </body>
 </html>
