@@ -1,22 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Tic Tac Toe - Online</title>
+  <meta charset="UTF-8" />
+  <title>Tic Tac Toe</title>
   <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: sans-serif;
       text-align: center;
-      margin-top: 40px;
     }
     .board {
       display: grid;
       grid-template-columns: repeat(3, 100px);
-      grid-template-rows: repeat(3, 100px);
       gap: 5px;
-      justify-content: center;
-      margin-top: 20px;
+      margin: 20px auto;
     }
     .cell {
       width: 100px;
@@ -24,25 +21,31 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 2px solid #444;
-      font-size: 2em;
+      font-size: 2.5em;
+      border: 2px solid #000;
       cursor: pointer;
       user-select: none;
     }
-    .cell.taken {
-      cursor: default;
-      color: #888;
+    .cell.x { color: red; }
+    .cell.o { color: blue; }
+    #status {
+      font-size: 1.2em;
+      margin-top: 10px;
+    }
+    #resetButton {
+      margin-top: 20px;
+      display: none;
     }
   </style>
 </head>
 <body>
-  <h1>Online Tic Tac Toe</h1>
-  <p id="status">Klik op "Online Spelen" om een tegenstander te zoeken.</p>
+  <h1>Tic Tac Toe</h1>
   <button id="startButton">Online Spelen</button>
-
   <div id="game" style="display: none;">
-    <h2>Jij speelt als: <span id="playerSymbol"></span></h2>
+    <p>Jij bent: <strong id="playerSymbol"></strong></p>
+    <div id="status">Wachten op tegenstander...</div>
     <div id="board" class="board"></div>
+    <button id="resetButton">Opnieuw spelen</button>
   </div>
 
   <script>
@@ -50,59 +53,103 @@
     const startButton = document.getElementById('startButton');
     const game = document.getElementById('game');
     const board = document.getElementById('board');
-    const playerSymbolSpan = document.getElementById('playerSymbol');
     const status = document.getElementById('status');
+    const playerSymbolDisplay = document.getElementById('playerSymbol');
+    const resetButton = document.getElementById('resetButton');
 
     let playerSymbol = '';
+    let currentTurn = 'X';
     let room = '';
-    let myTurn = false;
+    let gameOver = false;
 
-    startButton.addEventListener('click', () => {
+    startButton.onclick = () => {
+      socket.emit('find opponent');
+    };
+
+    socket.on('start', ({ room: r, players }) => {
+      room = r;
+      playerSymbol = players[0] === socket.id ? 'X' : 'O';
+      playerSymbolDisplay.textContent = playerSymbol;
       startButton.style.display = 'none';
-      status.textContent = 'Wachten op tegenstander...';
-    });
-
-    socket.on('start', ({ room: gameRoom, players }) => {
-      room = gameRoom;
-      playerSymbol = (players[0] === socket.id) ? 'X' : 'O';
-      myTurn = playerSymbol === 'X'; // X mag altijd beginnen
-
-      playerSymbolSpan.textContent = playerSymbol;
       game.style.display = 'block';
-      status.textContent = myTurn ? 'Jij bent aan de beurt' : 'Tegenstander is aan zet';
-
+      status.textContent = playerSymbol === 'X' ? 'Jij bent aan zet!' : 'Wacht op tegenstander...';
       createBoard();
     });
 
     function createBoard() {
       board.innerHTML = '';
+      gameOver = false;
+      currentTurn = 'X';
       for (let i = 0; i < 9; i++) {
         const cell = document.createElement('div');
-        cell.classList.add('cell');
+        cell.className = 'cell';
         cell.dataset.index = i;
-        cell.addEventListener('click', () => {
-          if (!myTurn || cell.classList.contains('taken')) return;
-
-          cell.textContent = playerSymbol;
-          cell.classList.add('taken');
-          myTurn = false;
-          status.textContent = 'Tegenstander is aan zet';
-          socket.emit('move', { room, index: i, symbol: playerSymbol });
-        });
+        cell.onclick = () => makeMove(i, cell);
         board.appendChild(cell);
       }
     }
 
+    function makeMove(index, cell) {
+      if (gameOver || currentTurn !== playerSymbol || cell.textContent !== '') return;
+
+      cell.textContent = playerSymbol;
+      cell.classList.add(playerSymbol.toLowerCase());
+      socket.emit('move', { room, index, symbol: playerSymbol });
+      checkWin();
+      currentTurn = playerSymbol === 'X' ? 'O' : 'X';
+      updateStatus();
+    }
+
     socket.on('move', ({ index, symbol }) => {
       const cell = board.children[index];
-      if (!cell.classList.contains('taken')) {
+      if (cell.textContent === '') {
         cell.textContent = symbol;
-        cell.classList.add('taken');
+        cell.classList.add(symbol.toLowerCase());
+        currentTurn = symbol === 'X' ? 'O' : 'X';
+        checkWin();
+        updateStatus();
       }
-
-      myTurn = true;
-      status.textContent = 'Jij bent aan de beurt';
     });
+
+    function updateStatus() {
+      if (gameOver) {
+        status.textContent = '';
+        return;
+      }
+      status.textContent = currentTurn === playerSymbol ? 'Jij bent aan zet!' : 'Wacht op tegenstander...';
+    }
+
+    function checkWin() {
+      const wins = [
+        [0,1,2], [3,4,5], [6,7,8],
+        [0,3,6], [1,4,7], [2,5,8],
+        [0,4,8], [2,4,6]
+      ];
+      const cells = Array.from(board.children);
+      for (const [a, b, c] of wins) {
+        if (
+          cells[a].textContent &&
+          cells[a].textContent === cells[b].textContent &&
+          cells[a].textContent === cells[c].textContent
+        ) {
+          status.textContent = `Speler ${cells[a].textContent} wint!`;
+          gameOver = true;
+          resetButton.style.display = 'inline-block';
+          return;
+        }
+      }
+      if ([...cells].every(cell => cell.textContent !== '')) {
+        status.textContent = 'Gelijkspel!';
+        gameOver = true;
+        resetButton.style.display = 'inline-block';
+      }
+    }
+
+    resetButton.onclick = () => {
+      createBoard();
+      status.textContent = playerSymbol === 'X' ? 'Jij bent aan zet!' : 'Wacht op tegenstander...';
+      resetButton.style.display = 'none';
+    };
   </script>
 </body>
 </html>
