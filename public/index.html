@@ -1,52 +1,108 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-const path = require('path');
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-  }
-});
-
-let waitingPlayer = null;
-
-// Serveer bestanden uit de 'public' map (zoals index.html)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Voeg een route toe voor de root URL (optioneel)
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-io.on('connection', socket => {
-  console.log('Gebruiker verbonden:', socket.id);
-
-  if (waitingPlayer) {
-    const room = `${waitingPlayer.id}#${socket.id}`;
-    socket.join(room);
-    waitingPlayer.join(room);
-    io.to(room).emit('start', { room, players: [waitingPlayer.id, socket.id] });
-    waitingPlayer = null;
-  } else {
-    waitingPlayer = socket;
-  }
-
-  socket.on('move', ({ room, index, symbol }) => {
-    socket.to(room).emit('move', { index, symbol });
-  });
-
-  socket.on('disconnect', () => {
-    if (waitingPlayer === socket) {
-      waitingPlayer = null;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tic Tac Toe - Online</title>
+  <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 40px;
     }
-  });
-});
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      grid-template-rows: repeat(3, 100px);
+      gap: 5px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .cell {
+      width: 100px;
+      height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #444;
+      font-size: 2em;
+      cursor: pointer;
+      user-select: none;
+    }
+    .cell.taken {
+      cursor: default;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1>Online Tic Tac Toe</h1>
+  <p id="status">Klik op "Online Spelen" om een tegenstander te zoeken.</p>
+  <button id="startButton">Online Spelen</button>
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`✅ Server draait op poort ${PORT}`);
-});
+  <div id="game" style="display: none;">
+    <h2>Jij speelt als: <span id="playerSymbol"></span></h2>
+    <div id="board" class="board"></div>
+  </div>
+
+  <script>
+    const socket = io();
+    const startButton = document.getElementById('startButton');
+    const game = document.getElementById('game');
+    const board = document.getElementById('board');
+    const playerSymbolSpan = document.getElementById('playerSymbol');
+    const status = document.getElementById('status');
+
+    let playerSymbol = '';
+    let room = '';
+    let myTurn = false;
+
+    startButton.addEventListener('click', () => {
+      startButton.style.display = 'none';
+      status.textContent = 'Wachten op tegenstander...';
+    });
+
+    socket.on('start', ({ room: gameRoom, players }) => {
+      room = gameRoom;
+      playerSymbol = (players[0] === socket.id) ? 'X' : 'O';
+      myTurn = playerSymbol === 'X'; // X mag altijd beginnen
+
+      playerSymbolSpan.textContent = playerSymbol;
+      game.style.display = 'block';
+      status.textContent = myTurn ? 'Jij bent aan de beurt' : 'Tegenstander is aan zet';
+
+      createBoard();
+    });
+
+    function createBoard() {
+      board.innerHTML = '';
+      for (let i = 0; i < 9; i++) {
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+        cell.dataset.index = i;
+        cell.addEventListener('click', () => {
+          if (!myTurn || cell.classList.contains('taken')) return;
+
+          cell.textContent = playerSymbol;
+          cell.classList.add('taken');
+          myTurn = false;
+          status.textContent = 'Tegenstander is aan zet';
+          socket.emit('move', { room, index: i, symbol: playerSymbol });
+        });
+        board.appendChild(cell);
+      }
+    }
+
+    socket.on('move', ({ index, symbol }) => {
+      const cell = board.children[index];
+      if (!cell.classList.contains('taken')) {
+        cell.textContent = symbol;
+        cell.classList.add('taken');
+      }
+
+      myTurn = true;
+      status.textContent = 'Jij bent aan de beurt';
+    });
+  </script>
+</body>
+</html>
