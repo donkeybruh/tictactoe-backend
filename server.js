@@ -1,65 +1,65 @@
-<script src="/socket.io/socket.io.js"></script>
-<script>
-const socket = io();
-let roomId = null;
-let playerSymbol = null;
-let gameOver = false;
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const path = require("path");
 
-// Bij klikken op online starten
-function startOnline() {
-  document.getElementById("menu-screen").classList.add("hidden");
-  document.getElementById("game-screen").classList.remove("hidden");
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 
-  socket.emit("joinRoom");
-}
+app.use(express.static(path.join(__dirname, "public")));
 
-socket.on("roomJoined", ({ room, symbol }) => {
-  roomId = room;
-  playerSymbol = symbol;
-  console.log("Joined room", roomId, "as", playerSymbol);
-});
+const rooms = {};
 
-socket.on("updateBoard", ({ index, symbol }) => {
-  gameBoard[index] = symbol;
-  document.getElementById('tic-tac-toe-grid').children[index].textContent = symbol;
-});
+io.on("connection", (socket) => {
+  socket.on("joinRoom", () => {
+    let room = Object.keys(rooms).find((r) => rooms[r].players.length < 2);
+    if (!room) {
+      room = socket.id;
+      rooms[room] = { players: [], board: Array(9).fill(""), currentTurn: "X" };
+    }
 
-socket.on("gameOver", (winner) => {
-  gameOver = true;
-  if (winner) {
-    alert(`${winner} wins!`);
-  } else {
-    alert("It's a draw!");
-  }
+    socket.join(room);
+    rooms[room].players.push(socket.id);
+    const symbol = rooms[room].players.length === 1 ? "X" : "O";
 
-  const restartBtn = document.createElement("button");
-  restartBtn.textContent = "Restart Game";
-  restartBtn.className = "start-button";
-  restartBtn.onclick = () => {
-    socket.emit("restartGame", { room: roomId });
-    restartBtn.remove();
-  };
-  document.getElementById("game-screen").appendChild(restartBtn);
-});
-
-socket.on("gameRestarted", () => {
-  gameOver = false;
-  gameBoard = ['', '', '', '', '', '', '', '', ''];
-  currentPlayer = 'X';
-
-  const cells = document.querySelectorAll('.grid button');
-  cells.forEach(cell => (cell.textContent = ''));
-});
-
-function markCell(index) {
-  if (gameOver || gameBoard[index] !== '') return;
-
-  if (playerSymbol !== currentPlayer) return;
-
-  socket.emit("makeMove", {
-    room: roomId,
-    index,
-    symbol: playerSymbol,
+    socket.emit("roomJoined", { room, symbol });
   });
+
+  socket.on("makeMove", ({ room, index, symbol }) => {
+    const game = rooms[room];
+    if (!game || game.board[index] !== "" || game.currentTurn !== symbol) return;
+
+    game.board[index] = symbol;
+    game.currentTurn = symbol === "X" ? "O" : "X";
+
+    io.to(room).emit("updateBoard", { index, symbol });
+
+    const winner = checkWinner(game.board);
+    if (winner || !game.board.includes("")) {
+      io.to(room).emit("gameOver", winner);
+    }
+  });
+
+  socket.on("restartGame", ({ room }) => {
+    if (!rooms[room]) return;
+    rooms[room].board = Array(9).fill("");
+    rooms[room].currentTurn = "X";
+    io.to(room).emit("gameRestarted");
+  });
+});
+
+function checkWinner(board) {
+  const wins = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6],
+  ];
+  for (const [a, b, c] of wins) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+  }
+  return null;
 }
-</script>
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
