@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Tic Tac Toe</title>
   <style>
-    /* Voeg dezelfde styling als eerder toe */
     body, html {
       margin: 0;
       padding: 0;
@@ -81,6 +80,7 @@
       display: none;
     }
 
+    /* Left arrow button */
     .back-button {
       position: absolute;
       top: 20px;
@@ -106,6 +106,7 @@
       transform: scale(0.95);
     }
 
+    /* Tic Tac Toe Grid */
     .grid {
       display: grid;
       grid-template-columns: repeat(3, 100px);
@@ -131,6 +132,7 @@
     .grid button:active {
       transform: scale(0.98);
     }
+
   </style>
 </head>
 <body>
@@ -139,13 +141,13 @@
   <!-- Keuzescherm -->
   <div id="menu-screen" class="container" role="main">
     <div class="choose-text">Choose your opponent</div>
-    <button class="start-button" onclick="startHumanRoomGame()">Human - This Room</button>
-    <button class="start-button" onclick="startOnlineGame()">Human - Online</button>
+    <button class="start-button" onclick="startHumanGame()">Human</button>
     <button class="start-button" onclick="startBotGame()">Bot</button>
   </div>
 
-  <!-- Vervolgscherm voor spelen tegen een andere speler -->
+  <!-- Keuzescherm voor het spelen tegen een andere speler -->
   <div id="human-screen" class="game-screen hidden">
+    <div class="choose-text">Choose a game type</div>
     <button class="start-button" onclick="startGameRoom()">This Room</button>
     <button class="start-button">Online</button>
     <button class="back-button" onclick="goBack('menu-screen')">←</button>
@@ -175,8 +177,8 @@
     let isBotTurn = false; // To track bot's turn
     let playingWithBot = false; // To track if we are playing against bot or human
 
-    // Functie om het scherm voor de mens in de kamer te starten
-    function startHumanRoomGame() {
+    // Functie om het scherm voor de mens te starten
+    function startHumanGame() {
       document.getElementById("menu-screen").classList.add("hidden");
       document.getElementById("human-screen").classList.remove("hidden");
       document.getElementById("main-header").classList.add("hidden");
@@ -235,4 +237,11 @@
     // Functie om de bot zet te laten doen
     function playBotMove() {
       if (isBotTurn) {
-        let bestMove = getBestMove(); // Ha
+        let bestMove = getBestMove(); // Haal de beste zet voor de bot op
+        markCell(bestMove);
+      }
+    }
+
+    // Functie om de beste zet van de bot te berekenen
+    function getBestMove() {
+      // Eerst kijken of de bot kan winnen
