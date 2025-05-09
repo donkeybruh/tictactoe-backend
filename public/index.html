@@ -145,11 +145,10 @@
     <button class="start-button" onclick="startBotGame()">Bot</button>
   </div>
 
-  <!-- Keuzescherm voor het spelen tegen een andere speler -->
+  <!-- Vervolgscherm voor spelen tegen een andere speler -->
   <div id="human-screen" class="game-screen hidden">
-    <div class="choose-text">Choose a game type</div>
-    <button class="start-button" onclick="startGameRoom()">This Room</button>
-    <button class="start-button">Online</button>
+    <button class="start-button" onclick="startThisRoom()">This Room</button>
+    <button class="start-button" onclick="startOnline()">Online</button>
     <button class="back-button" onclick="goBack('menu-screen')">←</button>
   </div>
 
@@ -192,6 +191,19 @@
       playingWithBot = true;
     }
 
+    // Functie om de optie 'This Room' te starten
+    function startThisRoom() {
+      document.getElementById("human-screen").classList.add("hidden");
+      document.getElementById("game-screen").classList.remove("hidden");
+      startGameRoomPlay();
+      playingWithBot = false;
+    }
+
+    // Functie om online te starten (plaats hier de logica voor online spelen)
+    function startOnline() {
+      alert("This option is not implemented yet, but you can implement a multiplayer feature with sockets.");
+    }
+
     // Start het spel voor de bot
     function startGameBot() {
       gameBoard = ['', '', '', '', '', '', '', '', ''];
@@ -203,14 +215,6 @@
     }
 
     // Start het spel voor de kamer
-    function startGameRoom() {
-      document.getElementById("human-screen").classList.add("hidden");
-      document.getElementById("game-screen").classList.remove("hidden");
-      startGameRoomPlay();
-      playingWithBot = false;
-    }
-
-    // Game logica voor het spelen tegen een andere speler
     function startGameRoomPlay() {
       gameBoard = ['', '', '', '', '', '', '', '', ''];
       currentPlayer = 'X'; // Player starts
@@ -245,3 +249,69 @@
     // Functie om de beste zet van de bot te berekenen
     function getBestMove() {
       // Eerst kijken of de bot kan winnen
+      for (let i = 0; i < 9; i++) {
+        if (gameBoard[i] === '') {
+          gameBoard[i] = 'O';
+          if (checkWinnerBot('O')) {
+            gameBoard[i] = '';
+            return i;
+          }
+          gameBoard[i] = '';
+        }
+      }
+
+      // Kijk of de speler kan winnen, en blokkeer hem
+  for (let i = 0; i < 9; i++) {
+    if (gameBoard[i] === '') {
+      gameBoard[i] = 'X';
+      if (checkWinnerBot('X')) {
+        gameBoard[i] = '';
+        return i;
+      }
+      gameBoard[i] = '';
+    }
+  }
+
+  // Geen winnende zet, kies een willekeurige zet
+  let availableMoves = [];
+  for (let i = 0; i < 9; i++) {
+    if (gameBoard[i] === '') {
+      availableMoves.push(i);
+    }
+  }
+  return availableMoves[Math.floor(Math.random() * availableMoves.length)];
+}
+
+// Functie om te controleren of iemand gewonnen heeft
+function checkWinner() {
+  const winningCombinations = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6]
+  ];
+
+  for (let combination of winningCombinations) {
+    const [a, b, c] = combination;
+    if (gameBoard[a] !== '' && gameBoard[a] === gameBoard[b] && gameBoard[a] === gameBoard[c]) {
+      alert(`${gameBoard[a]} wins!`);
+      return true;
+    }
+  }
+  return false;
+}
+
+// Functie om terug te gaan naar het vorige scherm
+function goBack(screen) {
+  document.getElementById("menu-screen").classList.add("hidden");
+  document.getElementById("human-screen").classList.add("hidden");
+  document.getElementById("game-screen").classList.add("hidden");
+  document.getElementById(screen).classList.remove("hidden");
+}
+
+// Reset het bord
+function resetGame() {
+  gameBoard = ['', '', '', '', '', '', '', '', ''];
+  currentPlayer = 'X';
+  const cells = document.querySelectorAll('.grid button');
+  cells.forEach(cell => cell.textContent = '');
+}
