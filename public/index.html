@@ -1,13 +1,52 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tic Tac Toe</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <h1>Welcome to Tic Tac Toe</h1>
-  <script src="script.js"></script>
-</body>
-</html>
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const path = require('path');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+  }
+});
+
+let waitingPlayer = null;
+
+// Serveer bestanden uit de 'public' map (zoals index.html)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Voeg een route toe voor de root URL (optioneel)
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+io.on('connection', socket => {
+  console.log('Gebruiker verbonden:', socket.id);
+
+  if (waitingPlayer) {
+    const room = `${waitingPlayer.id}#${socket.id}`;
+    socket.join(room);
+    waitingPlayer.join(room);
+    io.to(room).emit('start', { room, players: [waitingPlayer.id, socket.id] });
+    waitingPlayer = null;
+  } else {
+    waitingPlayer = socket;
+  }
+
+  socket.on('move', ({ room, index, symbol }) => {
+    socket.to(room).emit('move', { index, symbol });
+  });
+
+  socket.on('disconnect', () => {
+    if (waitingPlayer === socket) {
+      waitingPlayer = null;
+    }
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`✅ Server draait op poort ${PORT}`);
+});
