@@ -1,155 +1,238 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Tic Tac Toe</title>
-  <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-    }
-    .board {
-      display: grid;
-      grid-template-columns: repeat(3, 100px);
-      gap: 5px;
-      margin: 20px auto;
-    }
-    .cell {
-      width: 100px;
-      height: 100px;
+    /* Voeg dezelfde styling als eerder toe */
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #a8d5ba;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #204d34;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      font-size: 2.5em;
-      border: 2px solid #000;
-      cursor: pointer;
+    }
+
+    header {
+      width: 100%;
+      padding: 20px 0;
+      background-color: #91c7a9;
+      text-align: center;
+      font-size: 3rem;
+      font-weight: bold;
+      box-shadow: 0 2px 4px rgba(32, 77, 52, 0.2);
+      color: #204d34;
       user-select: none;
     }
-    .cell.x { color: red; }
-    .cell.o { color: blue; }
-    #status {
-      font-size: 1.2em;
-      margin-top: 10px;
+
+    .container, .game-screen {
+      flex: 1;
+      max-width: 350px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      padding-top: 80px;
+      box-sizing: border-box;
     }
-    #resetButton {
-      margin-top: 20px;
+
+    .choose-text {
+      font-size: 1.8rem;
+      margin-bottom: 20px;
+      font-weight: 600;
+      user-select: none;
+    }
+
+    .start-button {
+      background-color: #a3c1f0;
+      border: none;
+      padding: 25px 0;
+      font-size: 1.8rem;
+      color: #204d34;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(163, 193, 240, 0.5);
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+      width: 100%;
+      max-width: 300px;
+      margin-bottom: 20px;
+    }
+
+    .start-button:hover,
+    .start-button:focus {
+      background-color: #7ea9ed;
+      box-shadow: 0 6px 12px rgba(126, 169, 237, 0.7);
+      outline: none;
+    }
+
+    .start-button:active {
+      transform: scale(0.97);
+      box-shadow: 0 2px 4px rgba(126, 169, 237, 0.7);
+    }
+
+    .hidden {
       display: none;
+    }
+
+    .back-button {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background-color: #4a90e2;
+      border: none;
+      border-radius: 50%;
+      font-size: 2rem;
+      color: black;
+      padding: 15px;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.2s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .back-button:hover {
+      background-color: #357ab7;
+    }
+
+    .back-button:active {
+      transform: scale(0.95);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      grid-template-rows: repeat(3, 100px);
+      gap: 5px;
+      margin-top: 20px;
+    }
+
+    .grid button {
+      width: 100px;
+      height: 100px;
+      font-size: 2rem;
+      background-color: #f1f1f1;
+      border: 2px solid #204d34;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .grid button:hover {
+      background-color: #cfe2e1;
+    }
+
+    .grid button:active {
+      transform: scale(0.98);
     }
   </style>
 </head>
 <body>
-  <h1>Tic Tac Toe</h1>
-  <button id="startButton">Online Spelen</button>
-  <div id="game" style="display: none;">
-    <p>Jij bent: <strong id="playerSymbol"></strong></p>
-    <div id="status">Wachten op tegenstander...</div>
-    <div id="board" class="board"></div>
-    <button id="resetButton">Opnieuw spelen</button>
+  <header id="main-header">Tic Tac Toe</header>
+
+  <!-- Keuzescherm -->
+  <div id="menu-screen" class="container" role="main">
+    <div class="choose-text">Choose your opponent</div>
+    <button class="start-button" onclick="startHumanRoomGame()">Human - This Room</button>
+    <button class="start-button" onclick="startOnlineGame()">Human - Online</button>
+    <button class="start-button" onclick="startBotGame()">Bot</button>
+  </div>
+
+  <!-- Vervolgscherm voor spelen tegen een andere speler -->
+  <div id="human-screen" class="game-screen hidden">
+    <button class="start-button" onclick="startGameRoom()">This Room</button>
+    <button class="start-button">Online</button>
+    <button class="back-button" onclick="goBack('menu-screen')">←</button>
+  </div>
+
+  <!-- Tic Tac Toe Game Screen -->
+  <div id="game-screen" class="game-screen hidden">
+    <div class="choose-text">Game Room</div>
+    <div class="grid" id="tic-tac-toe-grid">
+      <button onclick="markCell(0)"></button>
+      <button onclick="markCell(1)"></button>
+      <button onclick="markCell(2)"></button>
+      <button onclick="markCell(3)"></button>
+      <button onclick="markCell(4)"></button>
+      <button onclick="markCell(5)"></button>
+      <button onclick="markCell(6)"></button>
+      <button onclick="markCell(7)"></button>
+      <button onclick="markCell(8)"></button>
+    </div>
+    <button class="start-button" onclick="resetGame()">Reset Game</button>
+    <button class="back-button" onclick="goBack('human-screen')">←</button>
   </div>
 
   <script>
-    const socket = io();
-    const startButton = document.getElementById('startButton');
-    const game = document.getElementById('game');
-    const board = document.getElementById('board');
-    const status = document.getElementById('status');
-    const playerSymbolDisplay = document.getElementById('playerSymbol');
-    const resetButton = document.getElementById('resetButton');
+    let currentPlayer = 'X';
+    let gameBoard = ['', '', '', '', '', '', '', '', ''];
+    let isBotTurn = false; // To track bot's turn
+    let playingWithBot = false; // To track if we are playing against bot or human
 
-    let playerSymbol = '';
-    let currentTurn = 'X';
-    let room = '';
-    let gameOver = false;
-
-    startButton.onclick = () => {
-      socket.emit('find opponent');
-    };
-
-    socket.on('start', ({ room: r, players }) => {
-      room = r;
-      playerSymbol = players[0] === socket.id ? 'X' : 'O';
-      playerSymbolDisplay.textContent = playerSymbol;
-      startButton.style.display = 'none';
-      game.style.display = 'block';
-      status.textContent = playerSymbol === 'X' ? 'Jij bent aan zet!' : 'Wacht op tegenstander...';
-      createBoard();
-    });
-
-    function createBoard() {
-      board.innerHTML = '';
-      gameOver = false;
-      currentTurn = 'X';
-      for (let i = 0; i < 9; i++) {
-        const cell = document.createElement('div');
-        cell.className = 'cell';
-        cell.dataset.index = i;
-        cell.onclick = () => makeMove(i, cell);
-        board.appendChild(cell);
-      }
+    // Functie om het scherm voor de mens in de kamer te starten
+    function startHumanRoomGame() {
+      document.getElementById("menu-screen").classList.add("hidden");
+      document.getElementById("human-screen").classList.remove("hidden");
+      document.getElementById("main-header").classList.add("hidden");
     }
 
-    function makeMove(index, cell) {
-      if (gameOver || currentTurn !== playerSymbol || cell.textContent !== '') return;
-
-      cell.textContent = playerSymbol;
-      cell.classList.add(playerSymbol.toLowerCase());
-      socket.emit('move', { room, index, symbol: playerSymbol });
-      checkWin();
-      currentTurn = playerSymbol === 'X' ? 'O' : 'X';
-      updateStatus();
+    // Functie om het spel scherm voor de bot te starten
+    function startBotGame() {
+      document.getElementById("menu-screen").classList.add("hidden");
+      document.getElementById("game-screen").classList.remove("hidden");
+      startGameBot();
+      playingWithBot = true;
     }
 
-    socket.on('move', ({ index, symbol }) => {
-      const cell = board.children[index];
-      if (cell.textContent === '') {
-        cell.textContent = symbol;
-        cell.classList.add(symbol.toLowerCase());
-        currentTurn = symbol === 'X' ? 'O' : 'X';
-        checkWin();
-        updateStatus();
-      }
-    });
-
-    function updateStatus() {
-      if (gameOver) {
-        status.textContent = '';
-        return;
-      }
-      status.textContent = currentTurn === playerSymbol ? 'Jij bent aan zet!' : 'Wacht op tegenstander...';
+    // Start het spel voor de bot
+    function startGameBot() {
+      gameBoard = ['', '', '', '', '', '', '', '', ''];
+      currentPlayer = 'X'; // Player starts
+      isBotTurn = false; // Player's turn first
+      const cells = document.querySelectorAll('.grid button');
+      cells.forEach(cell => cell.textContent = '');
+      playBotMove(); // Bot maakt meteen zijn zet
     }
 
-    function checkWin() {
-      const wins = [
-        [0,1,2], [3,4,5], [6,7,8],
-        [0,3,6], [1,4,7], [2,5,8],
-        [0,4,8], [2,4,6]
-      ];
-      const cells = Array.from(board.children);
-      for (const [a, b, c] of wins) {
-        if (
-          cells[a].textContent &&
-          cells[a].textContent === cells[b].textContent &&
-          cells[a].textContent === cells[c].textContent
-        ) {
-          status.textContent = `Speler ${cells[a].textContent} wint!`;
-          gameOver = true;
-          resetButton.style.display = 'inline-block';
-          return;
+    // Start het spel voor de kamer
+    function startGameRoom() {
+      document.getElementById("human-screen").classList.add("hidden");
+      document.getElementById("game-screen").classList.remove("hidden");
+      startGameRoomPlay();
+      playingWithBot = false;
+    }
+
+    // Game logica voor het spelen tegen een andere speler
+    function startGameRoomPlay() {
+      gameBoard = ['', '', '', '', '', '', '', '', ''];
+      currentPlayer = 'X'; // Player starts
+      const cells = document.querySelectorAll('.grid button');
+      cells.forEach(cell => cell.textContent = '');
+    }
+
+    // Functie om een cel van het bord te markeren
+    function markCell(index) {
+      if (gameBoard[index] === '') {
+        gameBoard[index] = currentPlayer;
+        document.getElementById('tic-tac-toe-grid').children[index].textContent = currentPlayer;
+        checkWinner();
+        currentPlayer = currentPlayer === 'X' ? 'O' : 'X'; // Switch player
+        if (currentPlayer === 'O' && playingWithBot) {
+          isBotTurn = true;
+          setTimeout(playBotMove, 500); // Laat de bot na een korte vertraging spelen
+        } else {
+          isBotTurn = false;
         }
       }
-      if ([...cells].every(cell => cell.textContent !== '')) {
-        status.textContent = 'Gelijkspel!';
-        gameOver = true;
-        resetButton.style.display = 'inline-block';
-      }
     }
 
-    resetButton.onclick = () => {
-      createBoard();
-      status.textContent = playerSymbol === 'X' ? 'Jij bent aan zet!' : 'Wacht op tegenstander...';
-      resetButton.style.display = 'none';
-    };
-  </script>
-</body>
-</html>
+    // Functie om de bot zet te laten doen
+    function playBotMove() {
+      if (isBotTurn) {
+        let bestMove = getBestMove(); // Ha
